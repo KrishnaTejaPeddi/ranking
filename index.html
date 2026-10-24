@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQUARE ONE</title>
+<!--
+  SQUARE ONE: a plain, single-list ranking tool.
+  One file, no dependencies, no backend. Data stays in your browser (localStorage).
+  Open source: do whatever you like with it (MIT).
+  To publish: save as index.html in a GitHub repo and enable GitHub Pages.
+-->
+<style>
+  :root {
+    --paper: #f1f0ec;
+    --raised: #f8f7f4;
+    --ink: #2a2b2d;
+    --soft: #8e8f90;
+    --line: #d6d5d0;
+    --accent: #4e6578;
+    --danger: #8a4a43;
+    --font: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #222325;
+      --raised: #2a2b2e;
+      --ink: #e4e3df;
+      --soft: #85878a;
+      --line: #3a3b3e;
+      --accent: #8fa8bc;
+      --danger: #c58a82;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0; color: var(--ink); background: var(--paper);
+    font-family: var(--font); font-size: 15px; line-height: 1.5;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  main { max-width: 880px; margin: 0 auto; padding: 48px 20px 96px; }
+
+  /* Wordmark: two nested squares + name */
+  .mark { display: flex; align-items: center; gap: 10px; margin-bottom: 56px; font-weight: 700; letter-spacing: .12em; font-size: 13px; }
+  .mark i { width: 16px; height: 16px; border: 2px solid var(--ink); display: grid; place-items: center; }
+  .mark i::after { content: ""; width: 6px; height: 6px; background: var(--accent); }
+
+  /* Title */
+  .title {
+    width: 100%; border: 0; border-bottom: 1px solid transparent; background: none;
+    padding: 4px 0; font-size: 22px; font-weight: 700; border-radius: 0;
+    transition: border-color .15s;
+  }
+  .title:hover, .title:focus { border-bottom-color: var(--line); outline: none; }
+  .title:focus-visible { border-bottom-color: var(--accent); }
+  .meta { display: flex; justify-content: space-between; gap: 12px; margin: 6px 0 28px; color: var(--soft); font-size: 13px; }
+  #status { color: var(--accent); }
+  #status.bad { color: var(--danger); }
+
+  /* Add form */
+  .add { display: flex; gap: 0; margin-bottom: 28px; }
+  .add input {
+    flex: 1; min-width: 0; padding: 12px 14px; background: var(--raised);
+    border: 1px solid var(--line); border-right: 0; border-radius: 0;
+  }
+  .add input::placeholder { color: var(--soft); }
+  .add input:focus { outline: none; border-color: var(--accent); }
+  .btn {
+    background: none; border: 1px solid var(--line); padding: 0 16px; border-radius: 0;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .btn:hover { border-color: var(--ink); }
+  .btn.solid { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .btn.solid:hover { background: var(--accent); border-color: var(--accent); }
+  .btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+  /* The ranking: square tiles, read left to right, top to bottom */
+  ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 24px 20px; }
+  li.row { display: flex; flex-direction: column; background: var(--paper); border: 1px solid var(--line); transition: border-color .15s; }
+  li.row:hover { border-color: var(--soft); }
+  li.row.moved { animation: settle .35s ease-out; }
+  @keyframes settle { from { box-shadow: 0 0 0 2px var(--accent); } to { box-shadow: 0 0 0 2px transparent; } }
+  li.row.dragging { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); position: relative; z-index: 2; }
+
+  .art { position: relative; aspect-ratio: 1; background: var(--raised); border-bottom: 1px solid var(--line); }
+  .art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .ph { position: absolute; inset: 0; width: 100%; border: 0; background: none; padding: 16px; color: var(--soft); font-size: 13px; transition: color .15s; }
+  .ph:hover { color: var(--ink); }
+
+  /* The numbered square sits on the artwork and is the drag handle */
+  .num {
+    position: absolute; top: 0; left: 0; width: 40px; height: 40px; display: grid; place-items: center;
+    background: var(--paper); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    font-weight: 700; font-size: 16px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  li.row.dragging .num { cursor: grabbing; color: var(--accent); }
+  li.row:first-child .num { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+
+  .info { display: flex; flex-direction: column; gap: 8px; padding: 10px; flex: 1; }
+  .name { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.4; }
+  .rename { width: 100%; padding: 8px 10px; background: var(--paper); border: 1px solid var(--accent); border-radius: 0; }
+  .rename:focus { outline: none; }
+
+  .ctl { display: flex; gap: 4px; }
+  .ctl button {
+    flex: 1; height: 32px; padding: 0; background: none; border: 1px solid var(--line);
+    color: var(--soft); border-radius: 0; transition: color .15s, border-color .15s;
+  }
+  .ctl button:hover:not(:disabled) { color: var(--ink); border-color: var(--ink); }
+  .ctl button.del:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
+  .ctl button:disabled { opacity: .3; cursor: default; }
+  .artbtns { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+  .link { background: none; border: 0; padding: 2px 0; color: var(--soft); text-decoration: underline; text-underline-offset: 3px; }
+  .link:hover { color: var(--ink); }
+
+  .empty { grid-column: 1 / -1; padding: 56px 0; color: var(--soft); border-bottom: 1px solid var(--line); }
+  .empty b { color: var(--ink); display: block; margin-bottom: 4px; }
+
+  /* Footer actions */
+  .foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+  .foot .btn { height: 38px; font-size: 13px; }
+  .foot .gap { flex: 1; }
+  input[type=file] { display: none; }
+
+  /* Confirm dialog */
+  dialog { border: 1px solid var(--ink); background: var(--paper); color: var(--ink); padding: 24px; max-width: 360px; width: calc(100% - 40px); border-radius: 0; }
+  dialog::backdrop { background: rgba(30,30,32,.45); }
+  dialog p { margin: 0 0 20px; }
+  dialog .row2 { display: flex; justify-content: flex-end; gap: 8px; }
+  dialog .btn { height: 38px; }
+
+  /* Artwork picker */
+  #picker { max-width: 760px; width: calc(100% - 24px); max-height: 90vh; overflow: auto; }
+  #picker h2 { margin: 0 0 14px; font-size: 15px; overflow-wrap: anywhere; }
+  .pq { display: flex; }
+  .pq input { flex: 1; min-width: 0; padding: 10px 12px; background: var(--raised); border: 1px solid var(--line); border-right: 0; border-radius: 0; }
+  .pq input:focus { outline: none; border-color: var(--accent); }
+  #picker .hint { margin: 8px 0 14px; color: var(--soft); font-size: 12px; }
+  #pickMsg { min-height: 1.5em; margin: 0 0 12px; color: var(--soft); }
+  #pickMsg.bad { color: var(--danger); }
+  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
+  .pick { display: flex; flex-direction: column; gap: 4px; text-align: left; background: none; border: 1px solid var(--line); padding: 0 0 8px; border-radius: 0; transition: border-color .15s; }
+  .pick:hover { border-color: var(--accent); }
+  .pick img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: var(--raised); }
+  .pick span { padding: 0 8px; font-size: 12px; overflow-wrap: anywhere; }
+  .pick .t { font-weight: 700; margin-top: 4px; }
+  .pick .a { color: var(--soft); }
+  .pfoot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; color: var(--soft); font-size: 12px; }
+  .pfoot .btn { height: 38px; flex: none; }
+
+  @media (max-width: 480px) {
+    ol { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 16px 12px; }
+    main { padding-top: 32px; }
+    .mark { margin-bottom: 36px; }
+    .ctl button { height: 36px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark"><i></i>SQUARE ONE</div>
+
+  <input id="title" class="title" maxlength="80" aria-label="Ranking title" spellcheck="false">
+  <div class="meta"><span id="count"></span><span id="status" role="status" aria-live="polite"></span></div>
+
+  <form class="add" id="addForm">
+    <input id="addInput" maxlength="120" placeholder="Add something to rank" aria-label="New item" autocomplete="off">
+    <button class="btn solid" type="submit">Add</button>
+  </form>
+
+  <ol id="list"></ol>
+
+  <div class="foot">
+    <button class="btn" id="exportBtn">Export</button>
+    <button class="btn" id="importBtn">Import</button>
+    <input type="file" id="file" accept="application/json,.json">
+    <span class="gap"></span>
+    <button class="btn danger" id="clearBtn">Clear list</button>
+  </div>
+</main>
+
+<dialog id="picker" aria-labelledby="pickTitle">
+  <h2 id="pickTitle"></h2>
+  <form class="pq" id="pickForm">
+    <input id="pickQ" maxlength="120" aria-label="Search albums" autocomplete="off">
+    <button class="btn solid" type="submit">Search</button>
+  </form>
+  <p class="hint">Tip: add the artist for better matches, like “OK Computer Radiohead”.</p>
+  <p id="pickMsg" role="status" aria-live="polite"></p>
+  <div class="results" id="pickResults"></div>
+  <div class="pfoot"><span>Artwork from the iTunes Search API. Covers belong to their owners.</span><button class="btn" type="button" id="pickCancel">Cancel</button></div>
+</dialog>
+
+<dialog id="dlg">
+  <p id="dlgText"></p>
+  <div class="row2">
+    <button class="btn" id="dlgNo">Cancel</button>
+    <button class="btn solid" id="dlgYes">Confirm</button>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+
+  const KEY = 'square-one:v1';
+  const $ = (id) => document.getElementById(id);
+  const listEl = $('list'), titleEl = $('title');
+
+  /* ---------- State ---------- */
+  // { title: string, items: [{ id: string, name: string }] }
+  let state = load();
+
+  // Only keep https image links (anything else is dropped)
+  function cleanUrl(u) { return typeof u === 'string' && /^https:\/\//.test(u) && u.length < 500 ? u : undefined; }
+
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+
+  function load() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEY));
+      if (raw && Array.isArray(raw.items)) {
+        return {
+          title: typeof raw.title === 'string' && raw.title ? raw.title : 'My ranking',
+          items: raw.items.filter(i => i && typeof i.name === 'string').map(i => ({ id: i.id || uid(), name: i.name, imageUrl: cleanUrl(i.imageUrl) }))
+        };
+      }
+    } catch (e) { /* fall through to default */ }
+    return { title: 'My ranking', items: [] };
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) { say('Could not save: browser storage is unavailable.', true); }
+  }
+
+  /* ---------- Small helpers ---------- */
+  let statusTimer;
+  function say(msg, bad) {
+    const s = $('status');
+    s.textContent = msg; s.className = bad ? 'bad' : '';
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { s.textContent = ''; }, 3500);
+  }
+
+  function confirmBox(text) {
+    return new Promise(resolve => {
+      const dlg = $('dlg');
+      $('dlgText').textContent = text;
+      const done = (v) => { dlg.close(); resolve(v); };
+      $('dlgYes').onclick = () => done(true);
+      $('dlgNo').onclick = () => done(false);
+      dlg.oncancel = () => resolve(false);
+      dlg.showModal();
+      $('dlgNo').focus();
+    });
+  }
+
+  const exists = (name, exceptId) =>
+    state.items.some(i => i.id !== exceptId && i.name.toLowerCase() === name.toLowerCase());
+
+  /* ---------- Render ---------- */
+  function render(movedId) {
+    titleEl.value = state.title;
+    const n = state.items.length;
+    $('count').textContent = n === 1 ? '1 item' : n + ' items';
+    document.title = state.title + ' · SQUARE ONE';
+    listEl.textContent = '';
+
+    if (!n) {
+      const d = document.createElement('li');
+      d.className = 'empty';
+      d.innerHTML = '<b>Nothing ranked yet.</b>Add your first item above. It starts at #1, and you can move it from there.';
+      listEl.appendChild(d);
+      return;
+    }
+
+    state.items.forEach((item, idx) => {
+      const li = document.createElement('li');
+      li.className = 'row' + (item.id === movedId ? ' moved' : '');
+      li.dataset.id = item.id;
+
+      // Artwork area: image if we have one, otherwise a button to find it
+      const art = document.createElement('div');
+      art.className = 'art';
+      const placeholder = (text) => {
+        const b = mkBtn(text, 'Find artwork for ' + item.name, () => openPicker(item));
+        b.className = 'ph';
+        return b;
+      };
+      if (item.imageUrl) {
+        const img = new Image();
+        img.alt = 'Cover art for ' + item.name;
+        img.loading = 'lazy'; img.draggable = false; img.referrerPolicy = 'no-referrer';
+        img.addEventListener('error', () => img.replaceWith(placeholder('Image unavailable. Find artwork')));
+        img.src = item.imageUrl;
+        art.appendChild(img);
+      } else {
+        art.appendChild(placeholder('Find artwork'));
+      }
+
+      const num = document.createElement('div');
+      num.className = 'num';
+      num.textContent = idx + 1;
+      num.title = 'Drag to reorder';
+      num.addEventListener('pointerdown', (e) => startDrag(e, li));
+      art.appendChild(num);
+
+      const info = document.createElement('div');
+      info.className = 'info';
+
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = item.name;
+      name.addEventListener('dblclick', () => startRename(li, item));
+
+      const ctl = document.createElement('div');
+      ctl.className = 'ctl';
+      ctl.append(
+        mkBtn('←', 'Move earlier', () => move(item.id, -1), idx === 0),
+        mkBtn('→', 'Move later', () => move(item.id, 1), idx === n - 1),
+        mkBtn('Aa', 'Rename', () => startRename(li, item)),
+        mkBtn('×', 'Delete', () => remove(item), false, 'del')
+      );
+
+      const artbtns = document.createElement('div');
+      artbtns.className = 'artbtns';
+      artbtns.appendChild(mkBtn(item.imageUrl ? 'Change artwork' : 'Find artwork',
+        (item.imageUrl ? 'Change' : 'Find') + ' artwork for ' + item.name, () => openPicker(item), false, 'link'));
+      if (item.imageUrl) {
+        artbtns.appendChild(mkBtn('Remove artwork', 'Remove artwork from ' + item.name, () => {
+          delete item.imageUrl; save(); render(item.id); say('Artwork removed.');
+        }, false, 'link'));
+      }
+
+      info.append(name, ctl, artbtns);
+      li.append(art, info);
+      listEl.appendChild(li);
+    });
+  }
+
+  function mkBtn(text, label, fn, disabled, cls) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = text;
+    b.setAttribute('aria-label', label); b.title = label;
+    if (cls) b.className = cls;
+    b.disabled = !!disabled;
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  /* ---------- Actions ---------- */
+  function move(id, delta) {
+    const i = state.items.findIndex(x => x.id === id);
+    const j = i + delta;
+    if (j < 0 || j >= state.items.length) return;
+    [state.items[i], state.items[j]] = [state.items[j], state.items[i]];
+    save(); render(id);
+    // keep keyboard focus on the same direction button (or its sibling if now disabled)
+    const row = listEl.querySelector('[data-id="' + id + '"]');
+    const btns = row.querySelectorAll('.ctl button');
+    const target = btns[delta < 0 ? 0 : 1];
+    (target.disabled ? btns[delta < 0 ? 1 : 0] : target).focus();
+  }
+
+  async function remove(item) {
+    if (await confirmBox('Delete "' + item.name + '"? Everything below it moves up one place.')) {
+      state.items = state.items.filter(x => x.id !== item.id);
+      save(); render(); say('Deleted.');
+    }
+  }
+
+  function startRename(li, item) {
+    const nameEl = li.querySelector('.name');
+    const input = document.createElement('input');
+    input.className = 'rename'; input.value = item.name; input.maxLength = 120;
+    input.setAttribute('aria-label', 'Rename item');
+    nameEl.replaceWith(input);
+    input.focus(); input.select();
+
+    let finished = false;
+    const finish = (commit) => {
+      if (finished) return; finished = true;
+      const v = input.value.trim();
+      if (commit && v && v !== item.name) {
+        if (exists(v, item.id)) { say('"' + v + '" is already in the list.', true); }
+        else { item.name = v; save(); say('Renamed.'); }
+      } else if (commit && !v) { say('A name can\'t be empty.', true); }
+      render(commit ? item.id : undefined);
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') finish(true);
+      if (e.key === 'Escape') finish(false);
+    });
+    input.addEventListener('blur', () => finish(true));
+  }
+
+  $('addForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('addInput');
+    const v = input.value.trim();
+    if (!v) { say('Type a name first.', true); input.focus(); return; }
+    if (exists(v)) { say('"' + v + '" is already in the list.', true); input.select(); return; }
+    state.items.push({ id: uid(), name: v });
+    save(); input.value = ''; render();
+    say('Added at #' + state.items.length + '.');
+    input.focus();
+  });
+
+  titleEl.addEventListener('input', () => { state.title = titleEl.value; save(); document.title = (state.title || 'Untitled') + ' · SQUARE ONE'; });
+  titleEl.addEventListener('blur', () => { if (!titleEl.value.trim()) { state.title = 'My ranking'; save(); } titleEl.value = state.title; });
+  titleEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') titleEl.blur(); });
+
+  $('clearBtn').addEventListener('click', async () => {
+    if (!state.items.length) { say('The list is already empty.', true); return; }
+    if (await confirmBox('Remove all ' + state.items.length + ' items? Export first if you might want them back.')) {
+      state.items = []; save(); render(); say('List cleared.');
+    }
+  });
+
+  /* ---------- Export / import ---------- */
+  $('exportBtn').addEventListener('click', () => {
+    if (!state.items.length) { say('Nothing to export yet.', true); return; }
+    const data = { app: 'square-one', version: 1, title: state.title, items: state.items.map(i => i.imageUrl ? { name: i.name, imageUrl: i.imageUrl } : i.name) };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    const slug = state.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'ranking';
+    a.href = URL.createObjectURL(blob); a.download = slug + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    say('Exported.');
+  });
+
+  $('importBtn').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onerror = () => say('Could not read that file.', true);
+    reader.onload = async () => {
+      let data;
+      try { data = JSON.parse(reader.result); } catch (err) { say('That file is not valid JSON.', true); return; }
+      if (!data || !Array.isArray(data.items)) { say('No ranking found in that file.', true); return; }
+      const seen = new Set(), items = [];
+      data.items.forEach(x => {
+        const name = (typeof x === 'string' ? x : x && x.name);
+        if (typeof name !== 'string') return;
+        const v = name.trim().slice(0, 120);
+        if (v && !seen.has(v.toLowerCase())) { seen.add(v.toLowerCase()); items.push({ id: uid(), name: v, imageUrl: cleanUrl(x && x.imageUrl) }); }
+      });
+      if (!items.length) { say('That file has no usable items.', true); return; }
+      if (state.items.length && !(await confirmBox('Replace your current list with ' + items.length + ' imported items?'))) return;
+      state = { title: (typeof data.title === 'string' && data.title.trim()) ? data.title.trim().slice(0, 80) : 'Imported ranking', items };
+      save(); render(); say('Imported ' + items.length + ' items.');
+    };
+    reader.readAsText(f);
+  });
+
+  /* ---------- Drag and drop (mouse, touch, pen) ----------
+     Grab the numbered square. We move the real DOM row while dragging,
+     then read the final order from the DOM when you let go. */
+  function startDrag(e, row) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    row.classList.add('dragging');
+
+    const onMove = (ev) => {
+      const x = ev.clientX, y = ev.clientY;
+      const hit = [...listEl.children].find(c => {
+        if (c === row) return false;
+        const r = c.getBoundingClientRect();
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      });
+      if (hit) {
+        // Dragging toward a later tile drops after it, toward an earlier one drops before it
+        if (row.compareDocumentPosition(hit) & Node.DOCUMENT_POSITION_FOLLOWING) hit.after(row);
+        else hit.before(row);
+      }
+      [...listEl.children].forEach((c, i) => { c.querySelector('.num').textContent = i + 1; });
+      // scroll the page when near the edges
+      if (y < 70) window.scrollBy(0, -12);
+      else if (y > window.innerHeight - 70) window.scrollBy(0, 12);
+    };
+    const onEnd = () => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onEnd);
+      handle.removeEventListener('pointercancel', onEnd);
+      const order = [...listEl.children].map(c => c.dataset.id);
+      const byId = new Map(state.items.map(i => [i.id, i]));
+      state.items = order.map(id => byId.get(id));
+      save(); render(row.dataset.id);
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onEnd);
+    handle.addEventListener('pointercancel', onEnd);
+  }
+
+  /* ---------- Artwork search ----------
+     `artwork` is the only place that knows about iTunes. To add another source,
+     write another object with the same search(term, signal) shape and use it here.
+     search() must resolve to [{ id, title, artist, thumb, image }]. */
+  const artwork = {
+    async search(term, signal) {
+      const url = 'https://itunes.apple.com/search?media=music&entity=album&country=CA&limit=12&term=' + encodeURIComponent(term);
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      return (data.results || []).filter(r => r.artworkUrl100).map(r => ({
+        id: r.collectionId, title: r.collectionName, artist: r.artistName,
+        thumb: r.artworkUrl100.replace('100x100bb', '300x300bb'),
+        image: r.artworkUrl100.replace('100x100bb', '600x600bb')
+      }));
+    }
+  };
+
+  /* ---------- Artwork picker ---------- */
+  const picker = $('picker'), pickMsg = $('pickMsg'), pickResults = $('pickResults');
+  let pickingId = null, pickCtl = null;
+
+  function setPickMsg(text, bad) { pickMsg.textContent = text; pickMsg.className = bad ? 'bad' : ''; }
+
+  function openPicker(item) {
+    pickingId = item.id;
+    $('pickTitle').textContent = 'Find artwork for “' + item.name + '”';
+    $('pickQ').value = item.name;
+    pickResults.textContent = '';
+    picker.showModal();
+    runSearch();
+  }
+
+  async function runSearch() {
+    const term = $('pickQ').value.trim();
+    pickResults.textContent = '';
+    if (pickCtl) pickCtl.abort();
+    if (!term) { pickCtl = null; setPickMsg('Type an album title or artist to search.', true); return; }
+    const ctl = pickCtl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 10000);
+    setPickMsg('Searching…');
+    try {
+      const found = await artwork.search(term, ctl.signal);
+      if (ctl !== pickCtl) return;               // a newer search or a closed picker took over
+      if (!found.length) { setPickMsg('No albums found. Check the spelling or add the artist name.', true); return; }
+      setPickMsg('');
+      found.forEach(r => pickResults.appendChild(resultButton(r)));
+    } catch (err) {
+      if (ctl !== pickCtl) return;
+      setPickMsg(ctl.signal.aborted ? 'The search timed out. Try again.' : 'Could not reach the artwork service. Check your connection and try again.', true);
+    } finally { clearTimeout(timer); }
+  }
+
+  function resultButton(r) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pick';
+    b.setAttribute('aria-label', 'Use ' + r.title + ' by ' + r.artist);
+    const img = new Image();
+    img.alt = 'Cover of ' + r.title + ' by ' + r.artist;
+    img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.src = r.thumb;
+    const t = document.createElement('span'); t.className = 't'; t.textContent = r.title;
+    const a = document.createElement('span'); a.className = 'a'; a.textContent = r.artist;
+    b.append(img, t, a);
+    b.addEventListener('click', () => {
+      const item = state.items.find(i => i.id === pickingId);
+      picker.close();
+      if (!item) return;
+      item.imageUrl = cleanUrl(r.image);
+      save(); render(item.id); say('Artwork added.');
+    });
+    return b;
+  }
+
+  // Wired once, here, so nothing gets attached twice
+  $('pickForm').addEventListener('submit', (e) => { e.preventDefault(); runSearch(); });
+  $('pickCancel').addEventListener('click', () => picker.close());
+  picker.addEventListener('click', (e) => { if (e.target === picker) picker.close(); });  // click on backdrop
+  picker.addEventListener('close', () => { if (pickCtl) pickCtl.abort(); pickCtl = null; pickingId = null; });
+
+  render();
+})();
+</script>
+</body>
+</html>
