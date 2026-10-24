@@ -133,13 +133,36 @@
   dialog .row2 { display: flex; justify-content: flex-end; gap: 8px; }
   dialog .btn { height: 38px; }
 
+  /* Rankings bar, description */
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin: -28px 0 36px; }
+  .bar select { flex: 1; min-width: 140px; height: 38px; padding: 0 10px; background: var(--raised); border: 1px solid var(--line); border-radius: 0; }
+  .bar .btn { height: 38px; font-size: 13px; }
+  .desc { width: 100%; border: 0; background: none; padding: 2px 0; color: var(--soft); font-size: 13px; border-radius: 0; }
+  .desc:focus { outline: none; color: var(--ink); }
+  .desc::placeholder { color: var(--soft); }
+  /* Compare dialog */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .side { display: flex; flex-direction: column; background: none; border: 1px solid var(--line); padding: 0; border-radius: 0; text-align: left; transition: border-color .15s; }
+  .side:hover, .side:focus-visible { border-color: var(--accent); }
+  .side .sq { aspect-ratio: 1; background: var(--raised); display: grid; place-items: center; color: var(--soft); font-size: 13px; }
+  .side img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .side b { padding: 10px; overflow-wrap: anywhere; }
+  .rrow, .drow, .srow { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .rrow b, .drow b { width: 32px; flex: none; color: var(--soft); }
+  .rrow span, .drow span { flex: 1; overflow-wrap: anywhere; }
+  .drow em { font-style: normal; flex: none; }
+  .up { color: var(--accent); } .down { color: var(--danger); } .same, .gone { color: var(--soft); }
+  .srow { justify-content: space-between; align-items: center; }
+  .sbtns { display: flex; gap: 12px; }
+  .actions { margin: 16px 0; display: flex; gap: 8px; }
+  .actions .btn { height: 38px; }
   /* Artwork picker */
-  #picker { max-width: 760px; width: calc(100% - 24px); max-height: 90vh; overflow: auto; }
-  #picker h2 { margin: 0 0 14px; font-size: 15px; overflow-wrap: anywhere; }
+  #picker, #duel, #hist { max-width: 760px; width: calc(100% - 24px); max-height: 90vh; overflow: auto; }
+  #picker h2, #duel h2, #hist h2 { margin: 0 0 14px; font-size: 15px; overflow-wrap: anywhere; }
   .pq { display: flex; }
   .pq input { flex: 1; min-width: 0; padding: 10px 12px; background: var(--raised); border: 1px solid var(--line); border-right: 0; border-radius: 0; }
   .pq input:focus { outline: none; border-color: var(--accent); }
-  #picker .hint { margin: 8px 0 14px; color: var(--soft); font-size: 12px; }
+  .hint { margin: 8px 0 14px; color: var(--soft); font-size: 12px; }
   #pickMsg { min-height: 1.5em; margin: 0 0 12px; color: var(--soft); }
   #pickMsg.bad { color: var(--danger); }
   .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
@@ -164,8 +187,15 @@
 <body>
 <main>
   <div class="mark"><i></i>SQUARE ONE</div>
+  <div class="bar">
+    <select id="rankSel" aria-label="Choose ranking"></select>
+    <button class="btn" id="newRank">New</button>
+    <button class="btn" id="dupRank">Duplicate</button>
+    <button class="btn danger" id="delRank">Delete</button>
+  </div>
 
   <input id="title" class="title" maxlength="80" aria-label="Ranking title" spellcheck="false">
+  <input id="desc" class="desc" maxlength="200" placeholder="Add a description (optional)" aria-label="Ranking description" autocomplete="off">
   <div class="meta"><span id="count"></span><span id="status" role="status" aria-live="polite"></span></div>
 
   <form class="add" id="addForm">
@@ -176,6 +206,8 @@
   <ol id="list"></ol>
 
   <div class="foot">
+    <button class="btn" id="duelBtn">Compare items</button>
+    <button class="btn" id="histBtn">History</button>
     <button class="btn" id="exportBtn">Export</button>
     <button class="btn" id="importBtn">Import</button>
     <input type="file" id="file" accept="application/json,.json">
@@ -184,15 +216,32 @@
   </div>
 </main>
 
+<dialog id="duel" aria-labelledby="duelQ">
+  <h2 id="duelQ">Which one do you prefer?</h2>
+  <p class="hint" id="duelProg"></p>
+  <div id="duelBox"></div>
+  <div class="pfoot"><span><button class="link" id="duelUndo">Undo</button> &nbsp; <button class="link" id="duelSkip">Skip</button></span><button class="btn" id="duelClose">Close</button></div>
+</dialog>
+
+<dialog id="hist" aria-labelledby="histT">
+  <h2 id="histT">History</h2>
+  <p class="hint">A snapshot saves the current order so you can compare with it or return to it later.</p>
+  <div class="actions"><button class="btn solid" id="snapBtn">Save snapshot</button></div>
+  <div id="histList"></div>
+  <div id="histDiff"></div>
+  <div class="pfoot"><span></span><button class="btn" id="histClose">Close</button></div>
+</dialog>
+
 <dialog id="picker" aria-labelledby="pickTitle">
   <h2 id="pickTitle"></h2>
   <form class="pq" id="pickForm">
     <input id="pickQ" maxlength="120" aria-label="Search albums" autocomplete="off">
     <button class="btn solid" type="submit">Search</button>
   </form>
-  <p class="hint">Tip: add the artist for better matches, like “OK Computer Radiohead”.</p>
+  <p class="hint">Tip: search an album, a song or an artist. Adding the artist helps, like “OK Computer Radiohead”.</p>
   <p id="pickMsg" role="status" aria-live="polite"></p>
   <div class="results" id="pickResults"></div>
+  <div class="actions"><button class="btn" type="button" id="pickMore" hidden>Show more</button></div>
   <div class="pfoot"><span>Artwork from the iTunes Search API. Covers belong to their owners.</span><button class="btn" type="button" id="pickCancel">Cancel</button></div>
 </dialog>
 
@@ -208,34 +257,54 @@
 (() => {
   'use strict';
 
-  const KEY = 'square-one:v1';
+  const KEY = 'square-one:v1';      // old single-list format (read once to migrate)
+  const KEY2 = 'square-one:v2';     // { currentId, rankings: [ranking] }
   const $ = (id) => document.getElementById(id);
   const listEl = $('list'), titleEl = $('title');
 
   /* ---------- State ---------- */
-  // { title: string, items: [{ id: string, name: string }] }
-  let state = load();
+  // ranking: { id, title, desc, items: [{ id, name, imageUrl? }], snaps: [{ id, at, items }] }
 
   // Only keep https image links (anything else is dropped)
   function cleanUrl(u) { return typeof u === 'string' && /^https:\/\//.test(u) && u.length < 500 ? u : undefined; }
 
   function uid() { return Math.random().toString(36).slice(2, 10); }
 
-  function load() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(KEY));
-      if (raw && Array.isArray(raw.items)) {
-        return {
-          title: typeof raw.title === 'string' && raw.title ? raw.title : 'My ranking',
-          items: raw.items.filter(i => i && typeof i.name === 'string').map(i => ({ id: i.id || uid(), name: i.name, imageUrl: cleanUrl(i.imageUrl) }))
-        };
-      }
-    } catch (e) { /* fall through to default */ }
-    return { title: 'My ranking', items: [] };
+  const blank = (title) => ({ id: uid(), title: title || 'My ranking', desc: '', items: [], snaps: [] });
+  const cleanItems = (a) => (Array.isArray(a) ? a : []).filter(i => i && typeof i.name === 'string' && i.name)
+    .map(i => ({ id: i.id || uid(), name: i.name, imageUrl: cleanUrl(i.imageUrl) }));
+
+  function fixRanking(r) {
+    return {
+      id: r.id || uid(),
+      title: typeof r.title === 'string' && r.title ? r.title : 'Untitled ranking',
+      desc: typeof r.desc === 'string' ? r.desc : '',
+      items: cleanItems(r.items),
+      snaps: (Array.isArray(r.snaps) ? r.snaps : []).filter(x => x && x.id).map(x => ({ id: x.id, at: x.at, items: cleanItems(x.items) }))
+    };
   }
 
+  function load() {
+    try {
+      const v2 = JSON.parse(localStorage.getItem(KEY2));
+      if (v2 && Array.isArray(v2.rankings) && v2.rankings.length) {
+        const rankings = v2.rankings.map(fixRanking);
+        return { currentId: rankings.some(r => r.id === v2.currentId) ? v2.currentId : rankings[0].id, rankings };
+      }
+    } catch (e) { /* try the old format */ }
+    try {
+      const v1 = JSON.parse(localStorage.getItem(KEY));
+      if (v1 && Array.isArray(v1.items)) { const r = fixRanking(v1); return { currentId: r.id, rankings: [r] }; }
+    } catch (e) { /* start fresh */ }
+    const r = blank();
+    return { currentId: r.id, rankings: [r] };
+  }
+
+  let store = load();
+  let state = store.rankings.find(r => r.id === store.currentId);   // the current ranking
+
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    try { localStorage.setItem(KEY2, JSON.stringify(store)); }
     catch (e) { say('Could not save: browser storage is unavailable.', true); }
   }
 
@@ -267,6 +336,14 @@
   /* ---------- Render ---------- */
   function render(movedId) {
     titleEl.value = state.title;
+    $('desc').value = state.desc || '';
+    const sel = $('rankSel');
+    sel.textContent = '';
+    store.rankings.forEach(r => {
+      const o = document.createElement('option');
+      o.value = r.id; o.textContent = r.title || 'Untitled'; o.selected = r.id === state.id;
+      sel.appendChild(o);
+    });
     const n = state.items.length;
     $('count').textContent = n === 1 ? '1 item' : n + ' items';
     document.title = state.title + ' · SQUARE ONE';
@@ -456,7 +533,8 @@
       });
       if (!items.length) { say('That file has no usable items.', true); return; }
       if (state.items.length && !(await confirmBox('Replace your current list with ' + items.length + ' imported items?'))) return;
-      state = { title: (typeof data.title === 'string' && data.title.trim()) ? data.title.trim().slice(0, 80) : 'Imported ranking', items };
+      state.title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim().slice(0, 80) : 'Imported ranking';
+      state.items = items;
       save(); render(); say('Imported ' + items.length + ' items.');
     };
     reader.readAsText(f);
@@ -509,21 +587,40 @@
      search() must resolve to [{ id, title, artist, thumb, image }]. */
   const artwork = {
     async search(term, signal) {
-      const url = 'https://itunes.apple.com/search?media=music&entity=album&country=CA&limit=12&term=' + encodeURIComponent(term);
-      const res = await fetch(url, { signal });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      return (data.results || []).filter(r => r.artworkUrl100).map(r => ({
-        id: r.collectionId, title: r.collectionName, artist: r.artistName,
-        thumb: r.artworkUrl100.replace('100x100bb', '300x300bb'),
-        image: r.artworkUrl100.replace('100x100bb', '600x600bb')
-      }));
+      const base = 'https://itunes.apple.com/search?media=music&limit=50&term=' + encodeURIComponent(term);
+      const calls = [base + '&entity=album&country=CA', base + '&entity=album&country=US', base + '&entity=song&country=CA'];
+      const settled = await Promise.allSettled(calls.map(u =>
+        fetch(u, { signal }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })));
+      if (settled.every(x => x.status === 'rejected')) throw settled[0].reason;   // only fail if every request failed
+      const seen = new Set(), out = [];
+      settled.forEach(x => {
+        if (x.status !== 'fulfilled') return;
+        (x.value.results || []).forEach(r => {
+          if (!r.artworkUrl100) return;
+          const key = r.collectionId || r.artworkUrl100;      // songs from the same album share one cover
+          if (seen.has(key)) return;
+          seen.add(key);
+          out.push({
+            id: key, title: r.collectionName || r.trackName, artist: r.artistName,
+            thumb: r.artworkUrl100.replace('100x100bb', '300x300bb'),
+            image: r.artworkUrl100.replace('100x100bb', '600x600bb')
+          });
+        });
+      });
+      return out;
     }
   };
 
   /* ---------- Artwork picker ---------- */
   const picker = $('picker'), pickMsg = $('pickMsg'), pickResults = $('pickResults');
-  let pickingId = null, pickCtl = null;
+  let pickingId = null, pickCtl = null, pickFound = [], pickShown = 0;
+  const PAGE = 24;
+  function addPage() {
+    pickFound.slice(pickShown, pickShown + PAGE).forEach(r => pickResults.appendChild(resultButton(r)));
+    pickShown += PAGE;
+    $('pickMore').hidden = pickShown >= pickFound.length;
+  }
+  $('pickMore').addEventListener('click', addPage);
 
   function setPickMsg(text, bad) { pickMsg.textContent = text; pickMsg.className = bad ? 'bad' : ''; }
 
@@ -538,7 +635,7 @@
 
   async function runSearch() {
     const term = $('pickQ').value.trim();
-    pickResults.textContent = '';
+    pickResults.textContent = ''; $('pickMore').hidden = true;
     if (pickCtl) pickCtl.abort();
     if (!term) { pickCtl = null; setPickMsg('Type an album title or artist to search.', true); return; }
     const ctl = pickCtl = new AbortController();
@@ -547,9 +644,9 @@
     try {
       const found = await artwork.search(term, ctl.signal);
       if (ctl !== pickCtl) return;               // a newer search or a closed picker took over
-      if (!found.length) { setPickMsg('No albums found. Check the spelling or add the artist name.', true); return; }
-      setPickMsg('');
-      found.forEach(r => pickResults.appendChild(resultButton(r)));
+      if (!found.length) { setPickMsg('No albums found. Check the spelling, or try the artist name on its own.', true); return; }
+      setPickMsg(found.length + ' results. Pick the right cover.');
+      pickFound = found; pickShown = 0; addPage();
     } catch (err) {
       if (ctl !== pickCtl) return;
       setPickMsg(ctl.signal.aborted ? 'The search timed out. Try again.' : 'Could not reach the artwork service. Check your connection and try again.', true);
@@ -581,6 +678,182 @@
   $('pickCancel').addEventListener('click', () => picker.close());
   picker.addEventListener('click', (e) => { if (e.target === picker) picker.close(); });  // click on backdrop
   picker.addEventListener('close', () => { if (pickCtl) pickCtl.abort(); pickCtl = null; pickingId = null; });
+
+  /* ---------- Several rankings ---------- */
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  function switchTo(id) {
+    store.currentId = id;
+    state = store.rankings.find(r => r.id === id);
+    save(); render();
+  }
+  $('rankSel').addEventListener('change', (e) => switchTo(e.target.value));
+  titleEl.addEventListener('input', () => { const o = $('rankSel').selectedOptions[0]; if (o) o.textContent = state.title || 'Untitled'; });
+  $('desc').addEventListener('input', () => { state.desc = $('desc').value; save(); });
+
+  $('newRank').addEventListener('click', () => {
+    const r = blank('Untitled ranking');
+    store.rankings.push(r); switchTo(r.id);
+    titleEl.focus(); titleEl.select();
+  });
+  $('dupRank').addEventListener('click', () => {
+    // A copy shares nothing with the original (deep clone, no history)
+    const c = fixRanking(JSON.parse(JSON.stringify({ ...state, id: null, snaps: [], title: (state.title + ' (copy)').slice(0, 80) })));
+    store.rankings.push(c); switchTo(c.id);
+    say('Duplicated. Changes here won’t touch the original.');
+  });
+  $('delRank').addEventListener('click', async () => {
+    if (!(await confirmBox('Delete “' + state.title + '” with its ' + state.items.length + ' items and ' + state.snaps.length + ' snapshots?'))) return;
+    store.rankings = store.rankings.filter(r => r.id !== state.id);
+    if (!store.rankings.length) store.rankings.push(blank());
+    switchTo(store.rankings[0].id);
+    say('Ranking deleted.');
+  });
+
+  /* ---------- Snapshots and history ---------- */
+  function pushSnap() {
+    state.snaps.push({ id: uid(), at: new Date().toISOString(), items: state.items.map(i => ({ id: i.id, name: i.name, imageUrl: i.imageUrl })) });
+    if (state.snaps.length > 50) state.snaps.shift();     // keep storage small
+    save();
+  }
+  const when = (iso) => { const d = new Date(iso); return isNaN(d) ? 'Unknown date' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); };
+  let diffId = null;
+
+  function renderHist() {
+    const L = $('histList'), D = $('histDiff');
+    L.textContent = ''; D.textContent = '';
+    if (!state.snaps.length) { L.appendChild(el('p', 'hint', 'No snapshots yet. Save one to start a history.')); return; }
+    [...state.snaps].reverse().forEach(sn => {
+      const row = el('div', 'srow');
+      row.appendChild(el('span', null, when(sn.at) + ', ' + sn.items.length + ' items'));
+      const b = el('span', 'sbtns');
+      b.append(
+        mkBtn('Compare', 'Compare current ranking with snapshot from ' + when(sn.at), () => { diffId = sn.id; renderHist(); }, false, 'link'),
+        mkBtn('Restore', 'Restore snapshot from ' + when(sn.at), () => restoreSnap(sn), false, 'link'),
+        mkBtn('Delete', 'Delete snapshot from ' + when(sn.at), () => { state.snaps = state.snaps.filter(x => x.id !== sn.id); save(); renderHist(); }, false, 'link')
+      );
+      row.appendChild(b); L.appendChild(row);
+    });
+    const sn = state.snaps.find(x => x.id === diffId);
+    if (sn) D.appendChild(diffView(sn));
+  }
+
+  // Positions only compared against a snapshot that really exists
+  function diffView(sn) {
+    const box = el('div');
+    box.appendChild(el('p', null, 'Now compared with ' + when(sn.at)));
+    box.firstChild.style.cssText = 'font-weight:700;margin:20px 0 8px';
+    const was = new Map(sn.items.map((i, k) => [i.id, k + 1]));
+    const now = new Set(state.items.map(i => i.id));
+    const row = (pos, name, txt, cls) => { const r = el('div', 'drow'); r.append(el('b', null, pos), el('span', null, name), el('em', cls, txt)); box.appendChild(r); };
+    state.items.forEach((it, k) => {
+      const p = was.get(it.id), at = k + 1;
+      if (p == null) row('#' + at, it.name, 'new', 'up');
+      else if (p > at) row('#' + at, it.name, '↑ ' + (p - at) + (p - at === 1 ? ' place' : ' places') + ' (was #' + p + ')', 'up');
+      else if (p < at) row('#' + at, it.name, '↓ ' + (at - p) + (at - p === 1 ? ' place' : ' places') + ' (was #' + p + ')', 'down');
+      else row('#' + at, it.name, 'same', 'same');
+    });
+    sn.items.forEach((it, k) => { if (!now.has(it.id)) row('', it.name, 'removed (was #' + (k + 1) + ')', 'gone'); });
+    return box;
+  }
+
+  async function restoreSnap(sn) {
+    if (!(await confirmBox('Restore the snapshot from ' + when(sn.at) + '? Your current order is saved as a snapshot first.'))) return;
+    pushSnap();
+    state.items = sn.items.map(i => ({ ...i }));
+    save(); render(); renderHist(); say('Snapshot restored.');
+  }
+
+  $('histBtn').addEventListener('click', () => { diffId = null; renderHist(); $('hist').showModal(); });
+  $('histClose').addEventListener('click', () => $('hist').close());
+  $('snapBtn').addEventListener('click', () => {
+    if (!state.items.length) { say('Add items before saving a snapshot.', true); return; }
+    pushSnap(); diffId = state.snaps[state.snaps.length - 1].id; renderHist();
+  });
+
+  /* ---------- Head-to-head ----------
+     Binary insertion: each item is placed into an ever-growing sorted list by asking
+     "better or worse than the middle one?". About n × log2(n) questions instead of every
+     pair. The result is only a proposal; your ranking changes only if you apply it. */
+  const duel = $('duel');
+  let d = null;
+  const byId = (id) => state.items.find(i => i.id === id);
+
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+  function nextCur() {
+    if (d.queue.length) { d.cur = d.queue.shift(); d.lo = 0; d.hi = d.sorted.length; } else d.cur = null;
+  }
+  const keep = () => d.hist.push(JSON.stringify({ sorted: d.sorted, queue: d.queue, cur: d.cur, lo: d.lo, hi: d.hi }));
+
+  function answer(preferCur) {
+    keep();
+    const mid = (d.lo + d.hi) >> 1;
+    if (preferCur) d.hi = mid; else d.lo = mid + 1;
+    if (d.lo >= d.hi) { d.sorted.splice(d.lo, 0, d.cur); nextCur(); }
+    showDuel();
+  }
+  function skip() {
+    if (!d.cur) return;
+    keep();
+    if (d.queue.length) { d.queue.push(d.cur); nextCur(); }               // ask about it later
+    else { d.sorted.splice(((d.lo + d.hi) >> 1) + 1, 0, d.cur); d.cur = null; }   // last one: call it a near tie
+    showDuel();
+  }
+
+  function side(item, fn) {
+    const b = el('button', 'side');
+    b.type = 'button'; b.setAttribute('aria-label', 'Prefer ' + item.name);
+    const sq = el('div', 'sq');
+    if (item.imageUrl) {
+      const img = new Image(); img.alt = 'Cover art for ' + item.name; img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => img.replaceWith(document.createTextNode('No artwork')));
+      img.src = item.imageUrl; sq.appendChild(img);
+    } else sq.textContent = 'No artwork';
+    b.append(sq, el('b', null, item.name));
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  function showDuel() {
+    const box = $('duelBox'), prog = $('duelProg');
+    box.textContent = '';
+    $('duelUndo').disabled = !d.hist.length;
+    if (!d.cur) {                                                          // finished
+      prog.textContent = 'Done. This is the order your answers give. Your ranking is unchanged until you apply it.';
+      d.sorted.forEach((id, k) => { const r = el('div', 'rrow'); r.append(el('b', null, '#' + (k + 1)), el('span', null, byId(id).name)); box.appendChild(r); });
+      const a = el('div', 'actions');
+      const ap = el('button', 'btn solid', 'Apply to ranking'); ap.type = 'button';
+      ap.addEventListener('click', async () => {
+        if (!(await confirmBox('Apply this order to “' + state.title + '”? Your current order is saved as a snapshot first.'))) return;
+        pushSnap(); state.items = d.sorted.map(byId); save(); render(); duel.close(); say('Order applied.');
+      });
+      a.appendChild(ap); box.appendChild(a);
+      return;
+    }
+    prog.textContent = 'Placed ' + d.sorted.length + ' of ' + d.total + '. Use the ← and → keys, or click.';
+    const other = byId(d.sorted[(d.lo + d.hi) >> 1]);
+    const pair = el('div', 'duo');
+    pair.append(side(byId(d.cur), () => answer(true)), side(other, () => answer(false)));
+    box.appendChild(pair);
+    if (pair.animate && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) pair.animate([{ opacity: .3 }, { opacity: 1 }], { duration: 180 });
+  }
+
+  $('duelBtn').addEventListener('click', () => {
+    if (state.items.length < 2) { say('Add at least two items to compare.', true); return; }
+    const ids = shuffle(state.items.map(i => i.id));
+    d = { sorted: [ids[0]], queue: ids.slice(1), cur: null, lo: 0, hi: 0, hist: [], total: ids.length };
+    nextCur(); showDuel(); duel.showModal();
+  });
+  $('duelUndo').addEventListener('click', () => { if (d && d.hist.length) { Object.assign(d, JSON.parse(d.hist.pop())); showDuel(); } });
+  $('duelSkip').addEventListener('click', () => { if (d) skip(); });
+  $('duelClose').addEventListener('click', () => duel.close());
+  duel.addEventListener('close', () => { d = null; });
+  duel.addEventListener('keydown', (e) => {
+    if (!d || !d.cur) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); answer(true); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); answer(false); }
+  });
 
   render();
 })();
